@@ -16,9 +16,9 @@ class Database {
     try {
       console.log("Db connection...");
       let db = await mongoose.connect(connectionString);
-      console.log("Db connected");
+      console.log(`MongoDB connected: ${db.connection.host}`);
     } catch (error) {
-      console.log("Error in connection db");
+      console.log("Error in connection db: ", error);
       process.exit(1);
     }
   }
