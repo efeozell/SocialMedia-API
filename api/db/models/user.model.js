@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 
 const userSchema = new mongoose.Schema(
   {
@@ -20,10 +21,31 @@ const userSchema = new mongoose.Schema(
       required: [true, "Password is required"],
       minlength: [8, "Password must be a least 8 character long"],
     },
+    profilePicture: {
+      type: String,
+    },
+    bio: {
+      type: String,
+      maxlength: 160,
+    },
+    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     role: {
       type: String,
       enum: ["user", "admin"],
       default: "user",
+    },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    emailVerificationToken: {
+      type: String,
+      select: false,
+    },
+    emailVerificationExpires: {
+      type: Date,
+      select: false,
     },
   },
   {
@@ -33,7 +55,9 @@ const userSchema = new mongoose.Schema(
 
 //Pre save yaparak db'de kaydederken hashleyip kaydediyoruz
 userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+  if (!this.isModified("password")) {
+    return next();
+  }
 
   try {
     const salt = await bcrypt.genSalt(10);
@@ -46,6 +70,16 @@ userSchema.pre("save", async function (next) {
 
 userSchema.methods.comparePassword = async function (password) {
   return bcrypt.compare(password, this.password);
+};
+
+userSchema.methods.createEmailVerificationToken = function () {
+  const verificationToken = crypto.randomBytes(32).toString("hex");
+
+  this.emailVerificationToken = crypto.createHash("sha256").update(verificationToken).digest("hex");
+
+  this.emailVerificationExpires = Date.now() + 15 * 60 * 1000;
+
+  return verificationToken;
 };
 
 const User = mongoose.model("User", userSchema);
