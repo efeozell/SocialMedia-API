@@ -11,6 +11,14 @@ const sesClient = new SESClient({
 });
 
 const sendEmail = async (option) => {
+  if (!option?.email) {
+    throw new Error("Email address is required");
+  }
+
+  if (!option?.subject) {
+    throw new Error("Email address is required");
+  }
+
   try {
     const emailBody = {};
 
@@ -38,7 +46,7 @@ const sendEmail = async (option) => {
         },
       },
 
-      Source: `"Efe Ozel - " <${ENV.EMAIL_FROM}>`,
+      Source: ENV.EMAIL_FROM_NAME ? `"${ENV.EMAIL_FROM_NAME}" <${ENV.EMAIL_FROM}>` : ENV.EMAIL_FROM,
     };
 
     const command = new SendEmailCommand(params);

@@ -33,7 +33,7 @@ export const signup = async (req, res, next) => {
                 <h2>Hesabinizi Dogrulayin</h2>
                 <p>Hesabinizi dogrulamak için aşağıdaki butona tıklayın:</p>
                 <a href="${verificationURL}" style="background-color: #007bff; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px;">
-                    Şifreyi Sıfırla
+                    Hesabı Doğrula
                 </a>
                 <p>Eğer bu link çalışmazsa, aşağıdaki adresi kopyalayıp tarayıcınıza yapıştırabilirsiniz:</p>
                 <p>${verificationURL}</p>
@@ -170,7 +170,7 @@ export const verifyEmail = async (req, res, next) => {
     });
 
     if (!user) {
-      res.status(400).json({ message: "Verification link is invalid or has expired." });
+      return res.status(400).json({ message: "Verification link is invalid or has expired." });
     }
 
     user.isEmailVerified = true;

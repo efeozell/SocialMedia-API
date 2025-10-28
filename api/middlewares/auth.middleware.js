@@ -15,7 +15,7 @@ export const protectRoute = async (req, res, next) => {
       const user = await User.findById(decoded.userId).select("-password");
 
       if (!user) {
-        return res.status(404).jsom({ message: "User not found" });
+        return res.status(404).json({ message: "User not found" });
       }
 
       req.user = user;
@@ -26,11 +26,11 @@ export const protectRoute = async (req, res, next) => {
         return res.status(401).json({ message: "Access token expired" });
       }
 
-      throw Error;
+      throw error;
     }
   } catch (error) {
     console.log(`Error in protectRoute: ${error}`);
-    return res.status(401).json({ message: "Unauthorized", error });
+    return res.status(401).json({ message: "Unauthorized" });
   }
 };
 
@@ -46,4 +46,5 @@ export const checkEmailVerified = (req, res, next) => {
   if (req.user && !req.user.isEmailVerified) {
     return next(new CustomError(403, "Email Not Verified", "Please verify your email address!"));
   }
+  next();
 };
