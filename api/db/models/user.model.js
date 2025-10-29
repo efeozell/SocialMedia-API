@@ -47,6 +47,18 @@ const userSchema = new mongoose.Schema(
       type: Date,
       select: false,
     },
+    isTwoFactorEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    twoFactorCode: {
+      type: String,
+      select: false,
+    },
+    twoFactorCodeExpires: {
+      type: Date,
+      select: false,
+    },
   },
   {
     timestamps: true,
@@ -80,6 +92,14 @@ userSchema.methods.createEmailVerificationToken = function () {
   this.emailVerificationExpires = Date.now() + 15 * 60 * 1000;
 
   return verificationToken;
+};
+
+userSchema.methods.createTwoFactorCode = function () {
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+  this.twoFactorCode = code;
+  this.twoFactorCodeExpires = Date.now() + 10 * 60 * 1000;
+  return code;
 };
 
 const User = mongoose.model("User", userSchema);

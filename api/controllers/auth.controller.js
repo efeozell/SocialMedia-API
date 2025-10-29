@@ -7,6 +7,7 @@ import { ENV } from "../config/env.js";
 import { redisClient } from "../lib/redis.js";
 import sendEmail from "../lib/SendEmail.js";
 import crypto from "crypto";
+import bcrypt from "bcrypt";
 
 export const signup = async (req, res, next) => {
   try {
@@ -69,9 +70,34 @@ export const login = async (req, res, next) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    //(Two-Factor Authentication - 2FA
+
     const saltPassword = await user.comparePassword(password);
 
     if (user && saltPassword) {
+      if (user.isTwoFactorEnabled) {
+        const twoFactorCode = user.createTwoFactorCode();
+
+        await user.save({ validateBeforeSave: false });
+
+        try {
+          await sendEmail({
+            email: user.email,
+            subject: "Giris Dogrulama Kodunuz",
+            message: `Giris yapmak icin dogrulama kodunuz: ${twoFactorCode}`,
+          });
+        } catch (emailError) {
+          console.log("emailError in login endpoint: ", emailError);
+          return next(new CustomError(500, "Could not send 2FA code. Please try again"));
+        }
+
+        return res.status(200).json({
+          status: "2fa_required",
+          message: "Please enter the 2FA code sent to your email",
+          userId: user._id,
+        });
+      }
+
       const { accessToken, refreshToken } = generateToken(user._id);
 
       await storeRefreshToken(user._id, refreshToken);
@@ -182,5 +208,82 @@ export const verifyEmail = async (req, res, next) => {
   } catch (error) {
     console.log("Error in verifyEmail: ", error);
     res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const enable2fa = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(400).json({ message: "User not found" });
+    }
+
+    const user = await User.findByIdAndUpdate(req.user._id, {
+      isTwoFactorEnabled: true,
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({ message: "Two-Factor Authentication - 2FA Successfully Enables" });
+  } catch (error) {
+    console.log(`Error in enable2fa endpoint ${error}`);
+    let errorResponse = Response.errorResponse(new CustomError(500, "Internal Server Error", "Internal Server Error"));
+    res.status(500).json(errorResponse);
+  }
+};
+
+export const verify2fa = async (req, res, next) => {
+  try {
+    const { twoFactorCode, userId } = req.body;
+
+    const user = await User.findOne({ _id: userId }).select("+twoFactorCode +twoFactorCodeExpires");
+    if (!user || !user.isTwoFactorEnabled) {
+      return res.status(400).json({ message: "User two factor not enabled" });
+    }
+    if (twoFactorCode === user.twoFactorCode && user.twoFactorCodeExpires > Date.now()) {
+      user.twoFactorCode = undefined;
+      user.twoFactorCodeExpires = undefined;
+
+      const { accessToken, refreshToken } = generateToken(user._id);
+
+      await storeRefreshToken(user._id, refreshToken);
+
+      setCookies(res, accessToken, refreshToken);
+
+      const response = Response.successResponse(user, 200);
+      res.status(200).json(response);
+    } else {
+      return res.status(401).json({ message: "Two factor code is invalid or has expired. " });
+    }
+  } catch (error) {
+    console.log(`Error in verify2fa endpoint ${error}`);
+    let errorResponse = Response.errorResponse(new CustomError(500, "Internal Server Error", "Internal Server Error"));
+    res.status(500).json(errorResponse);
+  }
+};
+
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { password, confirmPassword } = req.body;
+    if (!password || !confirmPassword) {
+      return res.status(400).json({ message: "Password or confirmPassword required" });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+
+    const saltedPasssword = await bcrypt.hash(password, salt);
+
+    const user = await User.findByIdAndUpdate({ _id: req.user._id }, { password: saltedPasssword });
+
+    if (!user) {
+      return res.status(400).json({ message: "User not found" });
+    }
+
+    res.status(200).json({ message: "Password changed successfully!" });
+  } catch (error) {
+    console.log(`Error in forgotPassword endpoint ${error}`);
+    let errorResponse = Response.errorResponse(new CustomError(500, "Internal Server Error", "Internal Server Error"));
+    res.status(500).json(errorResponse);
   }
 };
