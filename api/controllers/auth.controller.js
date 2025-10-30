@@ -213,19 +213,13 @@ export const verifyEmail = async (req, res, next) => {
 
 export const enable2fa = async (req, res, next) => {
   try {
-    if (!req.user) {
-      return res.status(400).json({ message: "User not found" });
-    }
-
-    const user = await User.findByIdAndUpdate(req.user._id, {
-      isTwoFactorEnabled: true,
-    });
+    const user = await User.findByIdAndUpdate(req.user._id, { isTwoFactorEnabled: true }, { new: true });
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.status(200).json({ message: "Two-Factor Authentication - 2FA Successfully Enables" });
+    res.status(200).json({ message: "Two-Factor Authentication - 2FA Successfully Enabled" });
   } catch (error) {
     console.log(`Error in enable2fa endpoint ${error}`);
     let errorResponse = Response.errorResponse(new CustomError(500, "Internal Server Error", "Internal Server Error"));
@@ -237,13 +231,33 @@ export const verify2fa = async (req, res, next) => {
   try {
     const { twoFactorCode, userId } = req.body;
 
+    if (!twoFactorCode || !userId) {
+      return res.status(400).json({ message: "userId and twoFactorCode are required" });
+    }
+
     const user = await User.findOne({ _id: userId }).select("+twoFactorCode +twoFactorCodeExpires");
     if (!user || !user.isTwoFactorEnabled) {
-      return res.status(400).json({ message: "User two factor not enabled" });
+      return res.status(400).json({ message: "User not found or 2FA is not enabled" });
     }
-    if (twoFactorCode === user.twoFactorCode && user.twoFactorCodeExpires > Date.now()) {
+
+    if (!user.twoFactorCode || !user.twoFactorCodeExpires || user.twoFactorCodeExpires <= Date.now()) {
+      return res.status(401).json({ message: "Two factor code is invalid or has expired" });
+    }
+
+    const codeBuffer = Buffer.from(twoFactorCode);
+    const userCodeBuffer = Buffer.from(user.twoFactorCode);
+
+    if (codeBuffer.length !== userCodeBuffer.length) {
+      return res.status(401).json({ message: "Two factor code is invalid or has expired" });
+    }
+
+    const codesMatch = crypto.timingSafeEqual(codeBuffer, userCodeBuffer);
+
+    if (codesMatch) {
       user.twoFactorCode = undefined;
       user.twoFactorCodeExpires = undefined;
+
+      await user.save({ validateBeforeSave: false });
 
       const { accessToken, refreshToken } = generateToken(user._id);
 
@@ -252,7 +266,8 @@ export const verify2fa = async (req, res, next) => {
       setCookies(res, accessToken, refreshToken);
 
       const response = Response.successResponse(user, 200);
-      res.status(200).json(response);
+
+      res.status(200).json({ message: "Login successful", response });
     } else {
       return res.status(401).json({ message: "Two factor code is invalid or has expired. " });
     }
@@ -270,15 +285,18 @@ export const forgotPassword = async (req, res, next) => {
       return res.status(400).json({ message: "Password or confirmPassword required" });
     }
 
-    const salt = await bcrypt.genSalt(10);
+    if (password !== confirmPassword) {
+      return res.status(400).json({ message: "Passwords do not match" });
+    }
 
-    const saltedPasssword = await bcrypt.hash(password, salt);
-
-    const user = await User.findByIdAndUpdate({ _id: req.user._id }, { password: saltedPasssword });
+    const user = await User.findById(req.user._id);
 
     if (!user) {
       return res.status(400).json({ message: "User not found" });
     }
+
+    user.password = password;
+    await user.save();
 
     res.status(200).json({ message: "Password changed successfully!" });
   } catch (error) {
