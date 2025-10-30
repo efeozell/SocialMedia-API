@@ -95,9 +95,10 @@ userSchema.methods.createEmailVerificationToken = function () {
 };
 
 userSchema.methods.createTwoFactorCode = function () {
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const code = crypto.randomInt(100000, 1000000).toString();
 
-  this.twoFactorCode = code;
+  this.twoFactorCode = crypto.createHash("sha256").update(code).digest("hex");
+
   this.twoFactorCodeExpires = Date.now() + 10 * 60 * 1000;
   return code;
 };

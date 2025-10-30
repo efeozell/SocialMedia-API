@@ -244,7 +244,9 @@ export const verify2fa = async (req, res, next) => {
       return res.status(401).json({ message: "Two factor code is invalid or has expired" });
     }
 
-    const codeBuffer = Buffer.from(twoFactorCode);
+    const hashedCode = crypto.createHash("sha256").update(twoFactorCode).digest("hex");
+
+    const codeBuffer = Buffer.from(hashedCode);
     const userCodeBuffer = Buffer.from(user.twoFactorCode);
 
     if (codeBuffer.length !== userCodeBuffer.length) {
@@ -252,8 +254,9 @@ export const verify2fa = async (req, res, next) => {
     }
 
     const codesMatch = crypto.timingSafeEqual(codeBuffer, userCodeBuffer);
+    const timeIsValid = user.twoFactorCodeExpires > Date.now();
 
-    if (codesMatch) {
+    if (codesMatch && timeIsValid) {
       user.twoFactorCode = undefined;
       user.twoFactorCodeExpires = undefined;
 
