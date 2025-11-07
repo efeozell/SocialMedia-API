@@ -28,8 +28,6 @@ const userSchema = new mongoose.Schema(
       type: String,
       maxlength: 160,
     },
-    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     role: {
       type: String,
       enum: ["user", "admin"],
@@ -59,6 +57,9 @@ const userSchema = new mongoose.Schema(
       type: Date,
       select: false,
     },
+    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    blockList: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   {
     timestamps: true,
