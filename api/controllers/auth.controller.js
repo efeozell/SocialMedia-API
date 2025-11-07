@@ -7,7 +7,7 @@ import { ENV } from "../config/env.js";
 import { redisClient } from "../lib/redis.js";
 import sendEmail from "../lib/SendEmail.js";
 import crypto from "crypto";
-import bcrypt from "bcrypt";
+import { sanitizeAuthUser } from "../utils/sanitize_data.js";
 
 export const signup = async (req, res, next) => {
   try {
@@ -104,7 +104,7 @@ export const login = async (req, res, next) => {
 
       setCookies(res, accessToken, refreshToken);
 
-      const response = Response.successResponse(user, 200);
+      const response = Response.successResponse(sanitizeAuthUser(user), 200);
       res.status(200).json(response);
     }
 
@@ -246,7 +246,9 @@ export const verify2fa = async (req, res, next) => {
 
     const hashedCode = crypto.createHash("sha256").update(twoFactorCode).digest("hex");
 
+    // eslint-disable-next-line no-undef
     const codeBuffer = Buffer.from(hashedCode);
+    // eslint-disable-next-line no-undef
     const userCodeBuffer = Buffer.from(user.twoFactorCode);
 
     if (codeBuffer.length !== userCodeBuffer.length) {
@@ -268,7 +270,7 @@ export const verify2fa = async (req, res, next) => {
 
       setCookies(res, accessToken, refreshToken);
 
-      const response = Response.successResponse(user, 200);
+      const response = Response.successResponse(sanitizeAuthUser(user), 200);
 
       res.status(200).json({ message: "Login successful", response });
     } else {
