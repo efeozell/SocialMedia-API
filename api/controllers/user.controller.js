@@ -1,7 +1,8 @@
 import User from "../db/models/user.model.js";
 import CustomError from "../lib/Error.js";
 import Response from "../lib/Response.js";
-import { sanitizeUserProfile, sanitizeUserSearch } from "../utils/sanitize_data.js";
+import { sanitizeUserProfile } from "../utils/sanitize_data.js";
+import mongoose from "mongoose";
 
 export const getUserByUserId = async (req, res) => {
   try {
@@ -22,8 +23,26 @@ export const getUserByUserId = async (req, res) => {
         );
     }
 
-    const user = await User.findById(userId).select("-password -__v");
-    if (!user) {
+    const user = await User.aggregate([
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(userId),
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          username: 1,
+          name: 1,
+          email: 1,
+          profilePicture: 1,
+          bio: 1,
+          followersCount: { $size: "$followers" },
+          followingCount: { $size: "$following" },
+        },
+      },
+    ]);
+    if (!user || user.length === 0) {
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -36,9 +55,7 @@ export const getUserByUserId = async (req, res) => {
         .json(Response.errorResponse(new CustomError(403, "Access denied", "You cannot view this profile")));
     }
 
-    const { password, ...data } = user;
-
-    const response = Response.successResponse(sanitizeUserProfile(user), 200);
+    const response = Response.successResponse(user[0], 200);
     res.status(200).json(response);
   } catch (error) {
     console.log("Error in getUserByUserId: ", error);
@@ -49,14 +66,31 @@ export const getUserByUserId = async (req, res) => {
 
 export const getUser = async (req, res) => {
   try {
-    const userId = req.user._id.toString();
+    const userId = req.user._id;
 
-    const user = await User.findById(userId).select("-password -__v");
-    if (!user) {
+    const user = await User.aggregate([
+      {
+        $match: { _id: userId },
+      },
+      {
+        $project: {
+          _id: 0,
+          username: 1,
+          name: 1,
+          email: 1,
+          profilePicture: 1,
+          bio: 1,
+          followersCount: { $size: "$followers" },
+          followingCount: { $size: "$following" },
+        },
+      },
+    ]);
+
+    if (!user || user.length === 0) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const response = Response.successResponse(sanitizeUserProfile(user));
+    const response = Response.successResponse(user[0]);
     res.status(200).json(response);
   } catch (error) {
     console.log("Error in getUser: ", error);

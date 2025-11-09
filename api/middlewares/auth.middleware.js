@@ -48,3 +48,49 @@ export const checkEmailVerified = (req, res, next) => {
   }
   next();
 };
+
+//Kullanicilarin birbirini engelleyip engellemedigini kontrol eden middleware
+export const checkNotBlocked = async (req, res, next) => {
+  const loggedInUserId = req.user._id;
+  const targetUserId = req.params.userId;
+
+  try {
+    const loggedInUser = await User.findById(loggedInUserId).select("blockList");
+    if (loggedInUser.blockList.includes(targetUserId)) {
+      return next(res.status(403).json({ message: "Access Denied" }));
+    }
+
+    const targetUser = await User.findById(targetUserId).select("blockList");
+    if (targetUser.blockList.includes(loggedInUserId)) {
+      return next(res.status(403).json({ message: "Access Denied" }));
+    }
+  } catch (error) {
+    console.log("Error in checkNotBlocked: " + error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+  next();
+};
+
+//Kullanicilarin birbirini takip edip etmedigini kontrol eden middleware
+export const checkNotFollowing = async (req, res, next) => {
+  const loggedInUserId = req.user._id;
+  const targetUserId = req.params.userId;
+
+  try {
+    const loggedInUser = await User.findById(loggedInUserId).select("following");
+
+    if (!loggedInUser.following.includes(targetUserId)) {
+      return next(res.status(403).json({ message: "Access Denied" }));
+    }
+
+    const targetUser = await User.findById(targetUserId).select("following");
+    if (!targetUser.following.includes(loggedInUserId)) {
+      return next(res.status(403).json({ message: "Access Denied" }));
+    }
+
+    next();
+  } catch (error) {
+    console.log("Error in checkNotFollowing: " + error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
