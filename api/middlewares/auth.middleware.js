@@ -56,19 +56,26 @@ export const checkNotBlocked = async (req, res, next) => {
 
   try {
     const loggedInUser = await User.findById(loggedInUserId).select("blockList");
+    if (!loggedInUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
     if (loggedInUser.blockList.includes(targetUserId)) {
-      return next(res.status(403).json({ message: "Access Denied" }));
+      return res.status(403).json({ message: "Access Denied" });
     }
 
     const targetUser = await User.findById(targetUserId).select("blockList");
-    if (targetUser.blockList.includes(loggedInUserId)) {
-      return next(res.status(403).json({ message: "Access Denied" }));
+    if (!targetUser) {
+      return res.status(404).json({ message: "User not found" });
     }
+
+    if (targetUser.blockList.includes(loggedInUserId)) {
+      return res.status(403).json({ message: "Access Denied" });
+    }
+    next();
   } catch (error) {
     console.log("Error in checkNotBlocked: " + error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
-  next();
 };
 
 //Kullanicilarin birbirini takip edip etmedigini kontrol eden middleware
@@ -79,18 +86,21 @@ export const checkNotFollowing = async (req, res, next) => {
   try {
     const loggedInUser = await User.findById(loggedInUserId).select("following");
 
+    if (!loggedInUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
     if (!loggedInUser.following.includes(targetUserId)) {
-      return next(res.status(403).json({ message: "Access Denied" }));
+      return res.status(403).json({ message: "Access Denied" });
     }
 
     const targetUser = await User.findById(targetUserId).select("following");
     if (!targetUser.following.includes(loggedInUserId)) {
-      return next(res.status(403).json({ message: "Access Denied" }));
+      return res.status(403).json({ message: "Access Denied" });
     }
-
-    next();
   } catch (error) {
     console.log("Error in checkNotFollowing: " + error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
+  next();
 };

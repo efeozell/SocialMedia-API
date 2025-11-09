@@ -37,6 +37,20 @@ export const updatePost = async (req, res) => {
     const { postId } = req.params;
     const { header, images } = req.body;
 
+    if (!header || !images) {
+      return res
+        .status(400)
+        .json(
+          Response.errorResponse(
+            new CustomError(
+              400,
+              "Header and images are required to update the post",
+              "Header and images are required to update the post"
+            )
+          )
+        );
+    }
+
     // Önce postu bul
     const post = await Post.findById(postId);
     if (!post) {
@@ -153,51 +167,18 @@ export const getPostForFlow = async (req, res) => {
   }
 };
 
-//Kullaniciya ait postlari getirir
+//Kullaniciya ait postlari getirir (Block ve follow kontrolu middleware'de yapiliyor)
 export const getUserPosts = async (req, res) => {
   try {
     const { userId } = req.params;
-    if (!userId) {
-      return res
-        .status(400)
-        .json(Response.errorResponse(new CustomError(400, "User ID is required in URL", "User ID is required in URL")));
-    }
 
-    const user = await User.findById(userId).select("-password -__v");
+    // Kullanici var mi kontrol et
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json(Response.errorResponse(new CustomError(404, "User not found", "User not found")));
     }
 
-    //Kullanici engellenmis mi diye kontrol ediyoruz
-    if (user.blockList.includes(req.user._id)) {
-      return res
-        .status(403)
-        .json(Response.errorResponse(new CustomError(403, "Access denied", "You cant view posts of this user")));
-    }
-
-    //Kullanicinin postlarini getirecek bu. Ama kullanici engellenmis mi diye birde takip ediyor mu diye konrol etmemiz gerekiyor
-    const loggedInUserId = req.user._id;
-    const loggedInUser = await User.findById(loggedInUserId).select("following blockList");
-    if (!loggedInUser) {
-      return res
-        .status(404)
-        .json(Response.errorResponse(new CustomError(404, "Logged in user not found", "Logged in user not found")));
-    }
-
-    //istegi gonderen kullancinin engelledigi kullanicilar arasinda mi kontrol ediyoruz.
-    if (loggedInUser.blockList.includes(user._id)) {
-      return res
-        .status(403)
-        .json(Response.errorResponse(new CustomError(403, "Acces denied", "You have blocked this user")));
-    }
-
-    //Eger kullanici kendi postlarini getirmek icin istek atmiyorsa takip ediyor mu diye kontrol ediyoruz.
-    if (!user._id.equals(loggedInUserId) && !loggedInUser.following.includes(user._id)) {
-      return res
-        .status(403)
-        .json(Response.errorResponse(new CustomError(403, "Acces denied", "You are not following this user")));
-    }
-
+    // Kullanicinin postlarini getir
     const userPosts = await Post.aggregate([
       {
         $match: {
@@ -231,6 +212,9 @@ export const getUserPosts = async (req, res) => {
           updatedAt: 1,
           likeCount: { $size: "$likes" },
           commentCount: { $size: "$comments" },
+          isLikedByUser: {
+            $in: [req.user._id, "$likes.user"],
+          },
         },
       },
     ]);
@@ -275,6 +259,8 @@ export const deletePost = async (req, res) => {
         );
     }
 
+    await Like.deleteMany({ post: postId });
+    await Comment.deleteMany({ post: postId });
     await Post.findByIdAndDelete(postId);
 
     res.status(200).json(Response.successResponse("Post deleted successfully"));

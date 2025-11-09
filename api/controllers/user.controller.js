@@ -31,7 +31,6 @@ export const getUserByUserId = async (req, res) => {
       },
       {
         $project: {
-          _id: 0,
           username: 1,
           name: 1,
           email: 1,
