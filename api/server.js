@@ -3,13 +3,12 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
-
 import { ENV } from "./config/env.js";
 import { connectRedis } from "./lib/redis.js";
 import Database from "../api/db/db.js";
-import Response from "./lib/Response.js";
-import CustomError from "./lib/Error.js";
 import mountRoutes from "./routes/index.js";
+import swaggerUI from "swagger-ui-express";
+import { swaggerSpecs } from "./config/swaggerConfig.js";
 
 const db = new Database();
 const app = express();
@@ -19,6 +18,8 @@ app.use(helmet());
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(cookieParser());
+
+app.use("/api-docs", swaggerUI.serve, swaggerUI.setup(swaggerSpecs));
 
 mountRoutes(app);
 

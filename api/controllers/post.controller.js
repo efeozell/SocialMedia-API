@@ -3,6 +3,7 @@ import CustomError from "../lib/Error.js";
 import Post from "../db/models/post.model.js";
 import User from "../db/models/user.model.js";
 import Like from "../db/models/like.model.js";
+import Comment from "../db/models/comment.model.js";
 
 export const createPost = async (req, res) => {
   try {
@@ -286,6 +287,23 @@ export const likePost = async (req, res) => {
     if (!post) {
       return res.status(404).json(Response.errorResponse(new CustomError(404, "Post not found", "Post not found")));
     }
+    const postAuthorId = post.author;
+
+    const [user, postAuthor] = await Promise.all([
+      User.findById(userId).select("blockList"),
+      User.findById(postAuthorId).select("blockList"),
+    ]);
+
+    if (user.blockList.includes(postAuthorId) || postAuthor.blockList.includes(userId)) {
+      return res
+        .status(403)
+        .json(
+          Response.errorResponse(
+            new CustomError(403, "You are not authorized to like this post", "You are not authorized to like this post")
+          )
+        );
+    }
+
     //Hali hazirda like atmi mi kontrol
     const existingLike = await Like.findOne({ post: postId, user: userId });
     if (existingLike) {
