@@ -294,6 +294,10 @@ export const likePost = async (req, res) => {
       User.findById(postAuthorId).select("blockList"),
     ]);
 
+    if (!user || !postAuthor) {
+      return res.status(404).json(Response.errorResponse(new CustomError(404, "User not found", "User not found")));
+    }
+
     if (user.blockList.includes(postAuthorId) || postAuthor.blockList.includes(userId)) {
       return res
         .status(403)

@@ -243,9 +243,7 @@ router.get("/search", protectRoute, searchUsers);
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/UserProfile'
+ *               $ref: '#/components/schemas/UserProfile'
  *       400:
  *         description: Geçersiz arama sorgusu (çok kısa veya çok uzun)
  *       401:
