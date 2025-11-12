@@ -260,9 +260,11 @@ export const deletePost = async (req, res) => {
         );
     }
 
-    await Like.deleteMany({ post: postId });
-    await Comment.deleteMany({ post: postId });
-    await Post.findByIdAndDelete(postId);
+    await Promise.all([
+      Like.deleteMany({ post: postId }),
+      Comment.deleteMany({ post: postId }),
+      Post.findByIdAndDelete(postId),
+    ]);
 
     res.status(200).json(Response.successResponse("Post deleted successfully"));
   } catch (error) {
