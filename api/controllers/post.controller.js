@@ -260,17 +260,11 @@ export const deletePost = async (req, res) => {
         );
     }
 
-    const deletePostWithEverything = Promise.all([
-      await Like.deleteMany({ post: postId }),
-      await Comment.deleteMany({ post: postId }),
-      await Post.findByIdAndDelete(postId),
+    await Promise.all([
+      Like.deleteMany({ post: postId }),
+      Comment.deleteMany({ post: postId }),
+      Post.findByIdAndDelete(postId),
     ]);
-
-    if (!deletePostWithEverything) {
-      return res
-        .status(500)
-        .json(Response.errorResponse(new CustomError(500, "Failed to delete post", "Failed to delete post")));
-    }
 
     res.status(200).json(Response.successResponse("Post deleted successfully"));
   } catch (error) {

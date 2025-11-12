@@ -26,6 +26,10 @@ export const createComment = async (req, res) => {
 
     const targetUser = await User.findById(post.author);
 
+    if (!targetUser) {
+      return res.status(404).json(Response.errorResponse(new CustomError("Post author user not found", 404)));
+    }
+
     if (user.blockList.includes(targetUser._id) || targetUser.blockList.includes(user._id)) {
       return res
         .status(403)
@@ -89,6 +93,14 @@ export const createReplyComment = async (req, res) => {
         .json(Response.errorResponse(new CustomError("Forbidden: You cannot reply to this comment", 403)));
     }
 
+    if (!text || text.trim() === "") {
+      return res.status(400).json(Response.errorResponse(new CustomError("Reply comment text cannot be empty", 400)));
+    }
+
+    if (text.length > 256) {
+      return res.status(400).json(Response.errorResponse(new CustomError("Reply comment is too long", 400)));
+    }
+
     const newReply = await Comment.create({
       content: text,
       author: loggedInUserId,
@@ -115,7 +127,13 @@ export const updateComment = async (req, res) => {
       return res.status(404).json(Response.errorResponse(new CustomError("Comment not found", 404)));
     }
     const user = await User.findById(loggedInUserId);
+    if (!user) {
+      return res.status(404).json(Response.errorResponse(new CustomError("User not found", 404)));
+    }
     const targetUser = await User.findById(comment.author);
+    if (!targetUser) {
+      return res.status(404).json(Response.errorResponse(new CustomError("Comment author user not found", 404)));
+    }
 
     if (user.blockList.includes(targetUser._id) || targetUser.blockList.includes(user._id)) {
       return res
@@ -155,9 +173,28 @@ export const updateReplyComment = async (req, res) => {
     const { text } = req.body;
     const loggedInUserId = req.user._id;
 
+    const user = await User.findById(loggedInUserId);
+
     const replyComment = await Comment.findById(commentReplyId);
     if (!replyComment) {
       return res.status(404).json(Response.errorResponse(new CustomError("Reply comment not found", 404)));
+    }
+
+    const targetUser = await User.findById(replyComment.author);
+    if (user.blockList.includes(targetUser._id) || targetUser.blockList.includes(user._id)) {
+      return res
+        .status(403)
+        .json(Response.errorResponse(new CustomError("Forbidden: You cannot update this reply comment", 403)));
+    }
+
+    if (!replyComment.parentComment) {
+      return res.status(400).json(Response.errorResponse(new CustomError("This is not a reply comment", 400)));
+    }
+
+    if (!user.following.includes(targetUser._id) || !targetUser.following.includes(user._id)) {
+      return res
+        .status(403)
+        .json(Response.errorResponse(new CustomError("Forbidden: You cannot update this reply comment", 403)));
     }
 
     if (!replyComment.author.equals(loggedInUserId)) {
@@ -166,8 +203,12 @@ export const updateReplyComment = async (req, res) => {
         .json(Response.errorResponse(new CustomError("Forbidden: You can only update your own reply comments", 403)));
     }
 
-    if (!text || text.trim() === "" || text.length > 256) {
+    if (!text || text.trim() === "") {
       return res.status(400).json(Response.errorResponse(new CustomError("Reply comment text cannot be empty", 400)));
+    }
+
+    if (text.length > 256) {
+      return res.status(400).json(Response.errorResponse(new CustomError("Reply comment is too long", 400)));
     }
 
     replyComment.content = text;
@@ -272,6 +313,13 @@ export const deleteComment = async (req, res) => {
     const isThereReplies = await Comment.findOne({ parentComment: commentId });
     if (isThereReplies) {
       await Comment.deleteMany({ parentComment: commentId });
+    }
+
+    await CommentLike.deleteMany({ comment: commentId });
+    if (isThereReplies) {
+      const replyIds = await Comment.find({ parentComment: commentId }).distinct("_id");
+
+      await CommentLike.deleteMany({ comment: { $in: replyIds } });
     }
 
     await Comment.findByIdAndDelete(commentId);

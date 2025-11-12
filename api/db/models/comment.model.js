@@ -28,6 +28,20 @@ const commentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+commentSchema.pre("save", async function (next) {
+  if (this.parentComment) {
+    if (this.parentComment.equals(this._id)) {
+      throw new Error("Comment cannot reference itself as parent comment");
+    }
+
+    const parent = await mongoose.model("Comment").findById(this.parentComment);
+    if (parent && !parent.post.equals(this.post)) {
+      throw new Error("Parent comment must belong to the same post");
+    }
+  }
+  next();
+});
+
 const Comment = mongoose.model("Comment", commentSchema);
 
 export default Comment;

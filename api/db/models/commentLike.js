@@ -8,12 +8,6 @@ const commentLikeSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    post: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Post",
-      required: true,
-      index: true,
-    },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
