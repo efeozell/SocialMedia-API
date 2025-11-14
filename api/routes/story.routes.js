@@ -113,7 +113,7 @@ const router = express.Router();
  *         content:
  *           application/json:
  *             schema:
- *               type: object
+ *               type: array
  *               items:
  *                 $ref: '#/components/schemas/StoryResponse'
  *       404:
@@ -165,7 +165,11 @@ const router = express.Router();
  *         content:
  *           application/json:
  *             schema:
- *               type: array
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Story basariyla silindi"
  *               items:
  *                 $ref: '#/components/schemas/StoryResponse'
  *       401:

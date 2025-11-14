@@ -324,24 +324,10 @@ export const deleteComment = async (req, res) => {
   try {
     const { commentId } = req.params;
     const loggedInUserId = req.user._id;
-    const user = await User.findById(loggedInUserId);
 
     const comment = await Comment.findById(commentId);
     if (!comment) {
       return res.status(404).json(Response.errorResponse(new CustomError("Comment not found", 404)));
-    }
-
-    const targetUser = await User.findById(comment.author);
-    if (user.blockList.includes(targetUser._id) || targetUser.blockList.includes(user._id)) {
-      return res
-        .status(403)
-        .json(Response.errorResponse(new CustomError("Forbidden: You cannot delete this comment", 403)));
-    }
-
-    if (!user.following.includes(targetUser._id) && !user.followers.includes(targetUser._id)) {
-      return res
-        .status(403)
-        .json(Response.errorResponse(new CustomError("Forbidden: You cannot comment on this post", 403)));
     }
 
     if (!comment.author.equals(loggedInUserId)) {
@@ -350,22 +336,27 @@ export const deleteComment = async (req, res) => {
         .json(Response.errorResponse(new CustomError("Forbidden: You can only delete your own comments", 403)));
     }
 
-    const isThereReplies = await Comment.findOne({ parentComment: commentId });
-    if (isThereReplies) {
-      await Comment.deleteMany({ parentComment: commentId });
-    }
+    //Silinecek yorumun cevabi var mi kontrol et
+    const replyIds = await Comment.find({ parentComment: commentId }).distinct("_id");
 
-    await CommentLike.deleteMany({ comment: commentId });
-    if (isThereReplies) {
-      const replyIds = await Comment.find({ parentComment: commentId }).distinct("_id");
-
+    //eger cevabi varsa begenilerini sil
+    if (replyIds.length > 0) {
       await CommentLike.deleteMany({ comment: { $in: replyIds } });
     }
 
+    //eger cevabi varsa yanitlarin hepsini sil
+    if (replyIds.length > 0) {
+      await Comment.deleteMany({ _id: { $in: replyIds } });
+    }
+
+    //Son olarak asil yorumun begenilerini sil
+    await CommentLike.deleteMany({ comment: commentId });
+    //Ve asil yorumu sil
     await Comment.findByIdAndDelete(commentId);
 
     res.status(200).json(Response.successResponse(null, "Comment successfully deleted"));
-  } catch {
+  } catch (error) {
+    console.log("Error in deleteComment: ", error);
     const response = Response.errorResponse(new CustomError("Internal Server Error", 500));
     return res.status(500).json(response);
   }

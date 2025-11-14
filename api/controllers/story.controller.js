@@ -83,7 +83,10 @@ export const getUserStories = async (req, res) => {
     }
 
     //Eger kullanici bizi takip etmiyorsa veya bizde onu takip etmiyorsak yada kullanici bizi takip ediyorsa biz onu takip etmiyorsa yada biz onu takip ediyorsak o bizi takip etmiyorsa hata
-    if (!user.followers.includes(userId) || !targetUser.following.includes(loggedInUserId)) {
+    const isFollower = user.followers.some((follower) => follower._id.toString() === userId);
+    const isFollowing = targetUser.following.some((followed) => followed._id.toString() === loggedInUserId.toString());
+
+    if (!isFollower || !isFollowing) {
       return res
         .status(403)
         .json(
@@ -92,9 +95,10 @@ export const getUserStories = async (req, res) => {
           )
         );
     }
+
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    const stories = await Story.find({ user: userId }, { createdAt: { $gte: twentyFourHoursAgo } });
+    const stories = await Story.find({ user: userId, createdAt: { $gte: twentyFourHoursAgo } });
     if (!stories || stories.length === 0) {
       return res
         .status(404)
