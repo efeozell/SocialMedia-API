@@ -30,10 +30,18 @@ export const createComment = async (req, res) => {
       return res.status(404).json(Response.errorResponse(new CustomError("Post author user not found", 404)));
     }
 
-    if (user.blockList.includes(targetUser._id) || targetUser.blockList.includes(user._id)) {
-      return res
-        .status(403)
-        .json(Response.errorResponse(new CustomError("Forbidden: You cannot comment on this post", 403)));
+    if (!loggedInUserId.equals(targetUser._id)) {
+      if (user.blockList.includes(targetUser._id) || targetUser.blockList.includes(user._id)) {
+        return res
+          .status(403)
+          .json(Response.errorResponse(new CustomError("Forbidden: You cannot comment on this post", 403)));
+      }
+
+      if (!user.following.includes(targetUser._id) && !user.followers.includes(targetUser._id)) {
+        return res
+          .status(403)
+          .json(Response.errorResponse(new CustomError("Forbidden: You cannot comment on this post", 403)));
+      }
     }
 
     if (!text || text.trim() === "") {
@@ -93,6 +101,12 @@ export const createReplyComment = async (req, res) => {
         .json(Response.errorResponse(new CustomError("Forbidden: You cannot reply to this comment", 403)));
     }
 
+    if (!user.following.includes(targetUser._id) && !user.followers.includes(targetUser._id)) {
+      return res
+        .status(403)
+        .json(Response.errorResponse(new CustomError("Forbidden: You cannot comment on this post", 403)));
+    }
+
     if (!text || text.trim() === "") {
       return res.status(400).json(Response.errorResponse(new CustomError("Reply comment text cannot be empty", 400)));
     }
@@ -139,6 +153,12 @@ export const updateComment = async (req, res) => {
       return res
         .status(403)
         .json(Response.errorResponse(new CustomError("Forbidden: You cannot update this comment", 403)));
+    }
+
+    if (!user.following.includes(targetUser._id) && !user.followers.includes(targetUser._id)) {
+      return res
+        .status(403)
+        .json(Response.errorResponse(new CustomError("Forbidden: You cannot comment on this post", 403)));
     }
 
     if (!comment.author.equals(loggedInUserId)) {
@@ -191,10 +211,10 @@ export const updateReplyComment = async (req, res) => {
       return res.status(400).json(Response.errorResponse(new CustomError("This is not a reply comment", 400)));
     }
 
-    if (!user.following.includes(targetUser._id) || !targetUser.following.includes(user._id)) {
+    if (!user.following.includes(targetUser._id) && !user.followers.includes(targetUser._id)) {
       return res
         .status(403)
-        .json(Response.errorResponse(new CustomError("Forbidden: You cannot update this reply comment", 403)));
+        .json(Response.errorResponse(new CustomError("Forbidden: You cannot comment on this post", 403)));
     }
 
     if (!replyComment.author.equals(loggedInUserId)) {
@@ -238,6 +258,12 @@ export const getCommentsForPost = async (req, res) => {
       return res
         .status(403)
         .json(Response.errorResponse(new CustomError("Forbidden: You cannot view comments on this post", 403)));
+    }
+
+    if (!user.following.includes(targetUser._id) && !user.followers.includes(targetUser._id)) {
+      return res
+        .status(403)
+        .json(Response.errorResponse(new CustomError("Forbidden: You cannot comment on this post", 403)));
     }
 
     // Toplam yorum sayısını al (blok kontrolü ile)
@@ -298,10 +324,24 @@ export const deleteComment = async (req, res) => {
   try {
     const { commentId } = req.params;
     const loggedInUserId = req.user._id;
+    const user = await User.findById(loggedInUserId);
 
     const comment = await Comment.findById(commentId);
     if (!comment) {
       return res.status(404).json(Response.errorResponse(new CustomError("Comment not found", 404)));
+    }
+
+    const targetUser = await User.findById(comment.author);
+    if (user.blockList.includes(targetUser._id) || targetUser.blockList.includes(user._id)) {
+      return res
+        .status(403)
+        .json(Response.errorResponse(new CustomError("Forbidden: You cannot delete this comment", 403)));
+    }
+
+    if (!user.following.includes(targetUser._id) && !user.followers.includes(targetUser._id)) {
+      return res
+        .status(403)
+        .json(Response.errorResponse(new CustomError("Forbidden: You cannot comment on this post", 403)));
     }
 
     if (!comment.author.equals(loggedInUserId)) {
@@ -325,8 +365,7 @@ export const deleteComment = async (req, res) => {
     await Comment.findByIdAndDelete(commentId);
 
     res.status(200).json(Response.successResponse(null, "Comment successfully deleted"));
-  } catch (error) {
-    console.log("Error in deleteComment: ", error);
+  } catch {
     const response = Response.errorResponse(new CustomError("Internal Server Error", 500));
     return res.status(500).json(response);
   }
@@ -337,53 +376,48 @@ export const likeComment = async (req, res) => {
   try {
     const { commentId } = req.params;
     const loggedInUserId = req.user._id;
-    const user = await User.findById(loggedInUserId);
 
-    const comment = await Comment.findById(commentId);
+    // Kullanıcı kontrolü
+    const user = await User.findById(loggedInUserId);
+    if (!user) {
+      return res.status(404).json(Response.errorResponse(new CustomError("User not found", 404)));
+    }
+
+    // Yorum kontrolü
+    const comment = await Comment.findById(commentId).populate("author");
     if (!comment) {
       return res.status(404).json(Response.errorResponse(new CustomError("Comment not found", 404)));
     }
+
+    // Yorum sahibini kontrol et
     const post = await Post.findById(comment.post);
-    if (!post) {
-      return res.status(404).json(Response.errorResponse(new CustomError("Post not found", 404)));
-    }
+    const postAuthor = await User.findById(post.author);
 
-    const targetUser = await User.findById(post.author);
-    if (!targetUser) {
-      return res.status(404).json(Response.errorResponse(new CustomError("Post author user not found", 404)));
-    }
-
-    if (user.blockList.includes(targetUser._id) || targetUser.blockList.includes(user._id)) {
+    if (user.blockList.includes(postAuthor._id) || postAuthor.blockList.includes(user._id)) {
       return res
         .status(403)
         .json(Response.errorResponse(new CustomError("Forbidden: You cannot like this comment", 403)));
     }
 
-    if (!user.following.includes(targetUser._id) || !targetUser.following.includes(user._id)) {
-      return res
-        .status(403)
-        .json(Response.errorResponse(new CustomError("Forbidden: You cannot like this comment", 403)));
-    }
-
+    // Zaten beğenilmiş mi kontrol et
     const existingLike = await CommentLike.findOne({
       comment: commentId,
       user: loggedInUserId,
     });
     if (existingLike) {
-      return res.status(409).json(Response.errorResponse(new CustomError("You have already liked this comment", 409)));
+      return res.status(400).json(Response.errorResponse(new CustomError("You have already liked this comment", 400)));
     }
 
+    // Yeni beğeni oluştur
     const newLike = new CommentLike({
       comment: commentId,
       user: loggedInUserId,
-      post: comment.post,
     });
 
     await newLike.save();
 
-    res.status(201).json(Response.successResponse(newLike, "Comment liked successfully"));
-  } catch (error) {
-    console.log("Error in likeComment: ", error);
+    res.status(200).json(Response.successResponse({ message: "Comment liked successfully" }));
+  } catch {
     const response = Response.errorResponse(new CustomError("Internal Server Error", 500));
     return res.status(500).json(response);
   }
@@ -394,48 +428,50 @@ export const dislikeComment = async (req, res) => {
   try {
     const { commentId } = req.params;
     const loggedInUserId = req.user._id;
-    const user = await User.findById(loggedInUserId);
 
-    const comment = await Comment.findById(commentId);
+    // Kullanıcı kontrolü
+    const user = await User.findById(loggedInUserId);
+    if (!user) {
+      return res.status(404).json(Response.errorResponse(new CustomError("User not found", 404)));
+    }
+
+    // Yorum kontrolü
+    const comment = await Comment.findById(commentId).populate("author");
     if (!comment) {
       return res.status(404).json(Response.errorResponse(new CustomError("Comment not found", 404)));
     }
-    const post = await Post.findById(comment.post);
-    if (!post) {
-      return res.status(404).json(Response.errorResponse(new CustomError("Post not found", 404)));
+
+    // Yorum sahibini kontrol et
+    const commentAuthor = comment.author;
+    if (!commentAuthor) {
+      return res.status(404).json(Response.errorResponse(new CustomError("Comment author not found", 404)));
     }
 
-    const targetUser = await User.findById(post.author);
-    if (!targetUser) {
-      return res.status(404).json(Response.errorResponse(new CustomError("Post author user not found", 404)));
-    }
-
-    if (user.blockList.includes(targetUser._id) || targetUser.blockList.includes(user._id)) {
+    // Blok kontrolü - yorum sahibi ile
+    if (user.blockList.includes(commentAuthor._id) || commentAuthor.blockList.includes(user._id)) {
       return res
         .status(403)
-        .json(Response.errorResponse(new CustomError("Forbidden: You cannot like this comment", 403)));
+        .json(Response.errorResponse(new CustomError("Forbidden: You cannot unlike this comment", 403)));
     }
 
-    if (!user.following.includes(targetUser._id) || !targetUser.following.includes(user._id)) {
+    if (!user.following.includes(commentAuthor._id) && !user.followers.includes(commentAuthor._id)) {
       return res
         .status(403)
-        .json(Response.errorResponse(new CustomError("Forbidden: You cannot like this comment", 403)));
+        .json(Response.errorResponse(new CustomError("Forbidden: You cannot comment on this post", 403)));
     }
 
+    // Beğeni var mı kontrol et ve sil
     const existingLike = await CommentLike.findOneAndDelete({
       comment: commentId,
       user: loggedInUserId,
     });
     if (!existingLike) {
-      return res.status(404).json(Response.errorResponse(new CustomError("You have not liked this comment", 404)));
+      return res.status(400).json(Response.errorResponse(new CustomError("You have not liked this comment", 400)));
     }
 
-    res.status(200).json(Response.successResponse(null, "Comment unliked successfully"));
-  } catch (error) {
-    console.log("Error in dislikeComment: ", error);
+    res.status(200).json(Response.successResponse({ message: "Comment unliked successfully" }));
+  } catch {
     const response = Response.errorResponse(new CustomError("Internal Server Error", 500));
     return res.status(500).json(response);
   }
 };
-
-//:TODO Like comment yapilacak
